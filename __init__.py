@@ -1,2 +1,1 @@
-from MatrixFactorization import MatrixFactorization
-from TensorFactorization import TensorFactorization
+from .MatrixFactorization.NMF import NMF
