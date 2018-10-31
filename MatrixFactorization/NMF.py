@@ -4,8 +4,8 @@ from numpy.random import RandomState
 distribution_beta = {'gaussian':2, 'poisson':1, 'gamma':0}
 
 class NMF:
-    
-    def __init__(self,n_components=None, distribution = 'gaussian', error = 'frobenius', max_iterations = 100, random_state=None):        
+
+    def __init__(self,n_components=None, distribution = 'gaussian', error = 'frobenius', max_iterations = 100, random_state=None):
         ''' Constructor for this class. '''
         self.n_components = n_components
         self.distibution = distribution
@@ -31,7 +31,7 @@ class NMF:
         W = W * ( ( ( ( W.dot(H)**(b-2) ) *self.V ).dot(H.T) ) / ( ( (W.dot(H))**(b-1) ).dot(H.T) ) )
 
         return W, H
-        
+
     def fit(self, V):
         print('Fit the Model')
         self.V = V
@@ -42,17 +42,24 @@ class NMF:
         if self.n_components is None:
             self.n_components = n_features
 
+        minV = np.min(V)
+        maxV = np.max(V)
+
         # Find if a random State is given
         if self.random_state is not None:
             self.W = self.random_state.random_sample((n_samples,self.n_components))
             self.H = self.random_state.random_sample((self.n_components,n_features))
+            #self.W = self.random_state.uniform(minV,maxV, (n_samples,self.n_components))
+            #self.H = self.random_state.uniform(minV,maxV, (self.n_components,n_features))
         else:
             self.W = np.random.random_sample((n_samples,n_features))
             self.H = np.random.random_sample((self.n_components,n_features))
+            #self.W = self.random_state.uniform(minV,maxV, (n_samples,self.n_components))
+            #self.H = self.random_state.uniform(minV,maxV, (self.n_components,n_features))
 
         print(self.W)
         print(self.H)
-        
+
     def transform(self, V):
         print('Trnasformation')
         if self.W is None or self.H is None:
@@ -71,8 +78,8 @@ class NMF:
                 break
             self.W = W
             self.H = H
-                
-        return W, H   
+
+        return W, H
 
     def fit_transform(self, V):
         print('Fit the Model and Transform')
