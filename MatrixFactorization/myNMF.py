@@ -14,12 +14,37 @@ from sklearn.decomposition.nmf import _check_string_param , _initialize_nmf,_fit
 
 distribution_beta = {'gaussian':2, 'poisson':1, 'gamma':0}
 
+def update_rule(V, W, H, dist):
+    
+    global distribution_beta
+    b = distribution_beta[dist]
+    H = H * ( (W.T).dot( ( ( W.dot(H)**(b-2) ) *V) ) / ( W.T.dot( (W.dot(H))**(b-1) ) ) )
+    W = W * ( ( ( ( W.dot(H)**(b-2) ) *V ).dot(H.T) ) / ( ( (W.dot(H))**(b-1) ).dot(H.T) ) )
+
+    return W, H 
+    
+def update(V,W,H,n_it,dist):
+    
+    Wold = W
+    Hold = H
+    
+    for i in range(0,n_it):
+
+            W, H = update_rule(V,W,H,dist)
+            if np.array_equal(W,Wold) and np.array_equal(H,Hold):
+                #print('Update process Stabilize')
+                break
+            Wold = W
+            Hold = H
+            
+    return W,H,i
+    
 def non_negative_factorization(X, W=None, H=None, n_components=None,
                                init='random', update_H=True, solver='cd',
                                beta_loss='frobenius', tol=1e-4,
                                max_iter=200, alpha=0., l1_ratio=0.,
                                regularization=None, random_state=None,
-                               verbose=0, shuffle=False):
+                               verbose=0, shuffle=False, distribution = 'gaussian'):
     r"""Compute Non-negative Matrix Factorization (NMF)
     Find two non-negative matrices (W, H) whose product approximates the non-
     negative matrix X. This factorization can be used for example for
@@ -133,7 +158,7 @@ def non_negative_factorization(X, W=None, H=None, n_components=None,
     factorization with the beta-divergence. Neural Computation, 23(9).
     """
 
-    print('My Non negative Factorization')
+    #print('My Non negative Factorization')
 
     X = check_array(X, accept_sparse=('csr', 'csc'), dtype=float)
     check_non_negative(X, "NMF (input X)")
@@ -177,22 +202,8 @@ def non_negative_factorization(X, W=None, H=None, n_components=None,
     l1_reg_W, l1_reg_H, l2_reg_W, l2_reg_H = _compute_regularization(
         alpha, l1_ratio, regularization)
 
-    if solver == 'cd':
-        W, H, n_iter = _fit_coordinate_descent(X, W, H, tol, max_iter,
-                                               l1_reg_W, l1_reg_H,
-                                               l2_reg_W, l2_reg_H,
-                                               update_H=update_H,
-                                               verbose=verbose,
-                                               shuffle=shuffle,
-                                               random_state=random_state)
-    elif solver == 'mu':
-        W, H, n_iter = _fit_multiplicative_update(X, W, H, beta_loss, max_iter,
-                                                  tol, l1_reg_W, l1_reg_H,
-                                                  l2_reg_W, l2_reg_H, update_H,
-                                                  verbose)
-
-    else:
-        raise ValueError("Invalid solver parameter '%s'." % solver)
+    W, H, n_iter = update(X, W, H, max_iter, distribution)
+    
 
     if n_iter == max_iter and tol > 0:
         warnings.warn("Maximum number of iteration %d reached. Increase it to"
@@ -209,8 +220,8 @@ class myNMF(NMF):
         ''' Constructor for this class. '''
         if (distribution not in distribution_beta.keys()):
             raise ValueError('This districution is not supported: ' + str(distribution))
-        self.distibution = distribution
-        print(self.distibution)
+        self.distribution = distribution
+        #print(self.distribution)
         super().__init__(n_components=None, init=None, solver='cd',
                      beta_loss='frobenius', tol=1e-4, max_iter=200,
                      random_state=None, alpha=0., l1_ratio=0., verbose=0,
@@ -244,7 +255,7 @@ class myNMF(NMF):
             tol=self.tol, max_iter=self.max_iter, alpha=self.alpha,
             l1_ratio=self.l1_ratio, regularization='both',
             random_state=self.random_state, verbose=self.verbose,
-            shuffle=self.shuffle)
+            shuffle=self.shuffle, distribution = self.distribution)
 
         self.reconstruction_err_ = _beta_divergence(X, W, H, self.beta_loss,
                                                     square_root=True)
@@ -288,6 +299,6 @@ class myNMF(NMF):
             beta_loss=self.beta_loss, tol=self.tol, max_iter=self.max_iter,
             alpha=self.alpha, l1_ratio=self.l1_ratio, regularization='both',
             random_state=self.random_state, verbose=self.verbose,
-            shuffle=self.shuffle)
+            shuffle=self.shuffle , distribution = self.distribution)
 
         return W
