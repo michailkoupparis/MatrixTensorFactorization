@@ -15,19 +15,19 @@ from sklearn.decomposition.nmf import _check_string_param , _initialize_nmf,_fit
 distribution_beta = {'gaussian':2, 'poisson':1, 'gamma':0}
 
 def update_rule(V, W, H, dist):
-    
+
     global distribution_beta
     b = distribution_beta[dist]
     H = H * ( (W.T).dot( ( ( W.dot(H)**(b-2) ) *V) ) / ( W.T.dot( (W.dot(H))**(b-1) ) ) )
     W = W * ( ( ( ( W.dot(H)**(b-2) ) *V ).dot(H.T) ) / ( ( (W.dot(H))**(b-1) ).dot(H.T) ) )
 
-    return W, H 
-    
+    return W, H
+
 def update(V,W,H,n_it,dist):
-    
+
     Wold = W
     Hold = H
-    
+
     for i in range(0,n_it):
 
             W, H = update_rule(V,W,H,dist)
@@ -36,9 +36,9 @@ def update(V,W,H,n_it,dist):
                 break
             Wold = W
             Hold = H
-            
+
     return W,H,i
-    
+
 def non_negative_factorization(X, W=None, H=None, n_components=None,
                                init='random', update_H=True, solver='cd',
                                beta_loss='frobenius', tol=1e-4,
@@ -203,7 +203,7 @@ def non_negative_factorization(X, W=None, H=None, n_components=None,
         alpha, l1_ratio, regularization)
 
     W, H, n_iter = update(X, W, H, max_iter, distribution)
-    
+
 
     if n_iter == max_iter and tol > 0:
         warnings.warn("Maximum number of iteration %d reached. Increase it to"
@@ -222,10 +222,10 @@ class myNMF(NMF):
             raise ValueError('This districution is not supported: ' + str(distribution))
         self.distribution = distribution
         #print(self.distribution)
-        super().__init__(n_components=None, init=None, solver='cd',
-                     beta_loss='frobenius', tol=1e-4, max_iter=200,
-                     random_state=None, alpha=0., l1_ratio=0., verbose=0,
-                     shuffle=False)
+        super().__init__(n_components=n_components, init=init, solver=solver,
+                     beta_loss=beta_loss, tol=tol, max_iter=max_iter,
+                     random_state=random_state, alpha=alpha, l1_ratio=l1_ratio, verbose=verbose,
+                     shuffle=shuffle)
 
     def printType(self):
         print('NMF class')
