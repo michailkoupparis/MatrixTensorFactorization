@@ -12,12 +12,14 @@ distribution_beta = {'gaussian':2, 'poisson':1, 'gamma':0}
 '''
 Functions for updating the W and H Matrices given the distribution,
 Each has a corresponding phi convex function, from this phi
-the functions psi= partial_derivative(phi) and psi_inverse are found
+the functions psi= partial_derivative(phi) and zet= partial_derivative(psi) are found
 Then they applied in the following equations:
 
-wp = wp * psi_inverse([psi(v.T) H.T]p / [psi(w.T H) H.T]p )
-hp = hp * psi_inverse([W.T psi(v)]p / [W.T psi(W h)]p)
+wp = wp * ([(zet(WH) ⊙ V) H.T]p / [(zet(WH) ⊙ BC)  H.T]p )
+hp = hp * ([W.T (zet(WH) ⊙ V)]p / [W.T ⊙ (zet(WH)  BC)]p )
 '''
+
+
 
 def gaussian_phi(V,W,H):
 
@@ -29,31 +31,61 @@ def gaussian_phi(V,W,H):
 
 def poisson_phi(V,W,H):
 
-    Vc = V + 0.00000000001
-    H = np.multiply(H, np.power(math.e, np.divide(W.T.dot(np.log(np.divide(Vc,W.dot(H)))),W.T.dot(np.ones(Vc.shape)))))
-    W = np.multiply ( W, np.power(math.e, np.divide( ((np.log(np.divide(Vc,W.dot(H)))).dot(H.T)) , (np.ones(Vc.shape).dot(H.T)   ) )  ))
+
+    H = np.multiply(H, np.divide(W.T.dot(np.multiply(np.divide(1,W.dot(H)), V)), W.T.dot(np.multiply(np.divide(1,W.dot(H)), W.dot(H))) ) )
+    W = np.multiply(W, np.divide( np.multiply(np.divide(1,W.dot(H)), V).dot(H.T), np.multiply(np.divide(1,W.dot(H)), W.dot(H)).dot(H.T) ) )
 
     return W, H
 
 def gamma_phi(V,W,H):
 
-    Vc = V + 0.00000000001
-    
-    H = np.multiply(H, np.divide(W.T.dot(np.divide(W.dot(H),Vc)), W.T.dot(np.ones(Vc.shape))))
-    W = np.multiply(W, np.divide(np.divide(W.dot(H),Vc).dot(H.T), np.ones(Vc.shape).dot(H.T)))
+    H = np.multiply(H, np.divide( W.T.dot(np.multiply(np.divide(1,(W.dot(H)))**2,V)) , W.T.dot(np.multiply(np.divide(1,(W.dot(H))**2),W.dot(H)))) )
+    W = np.multiply(W, np.divide(np.multiply(np.divide(1,(W.dot(H))**2),V).dot(H.T) ,  np.multiply(np.divide(1,(W.dot(H))**2), W.dot(H)).dot(H.T)))
 
     return W, H
 
+def bernoulli_phi(V,W,H):
+
+    applied = bernoulli_apply_zeta(W,H,1)
+    H = np.multiply(H, np.divide( W.T.dot(np.multiply( applied, V )) , W.T.dot(np.multiply( applied, W.dot(H) )) ) )
+
+    applied = bernoulli_apply_zeta(W,H,1)
+    W = np.multiply(W, np.divide(np.multiply( applied, V ).dot(H.T), np.multiply( applied, W.dot(H) ).dot(H.T)  ) )
+
+    return W, H
+
+'''
+Apply 1/ ((WH)(1-WH))
+'''
+def bernoulli_apply_zeta(W,H,limit):
+
+    dot_product = cast_to_limit(W,H,1)
+    applied = np.divide(1,np.multiply(dot_product,1-dot_product))
+    return applied
+
+"Function for making the dot product of W with H satisfy the domain"
+def cast_to_limit(W,H,limit):
+
+    product = W.dot(H)
+    indices = np.where(product>=limit)
+    product[indices] = limit - 1e-5
+
+    indices = np.where(product==0)
+    product[indices] = 1e-5
+
+    return product
+
 distribution_phi = {'gaussian' : gaussian_phi,
                     'poisson'  : poisson_phi,
-                     'gamma'   : gamma_phi
+                     'gamma'   : gamma_phi,
+                     'bernoulli' : bernoulli_phi
+                     #'binomial'  : binomial_phi,
+                     #'multinomial' : multinomial_phi
                     }
-
-
 
 class NMF:
 
-    def __init__(self,n_components=None, distribution = 'gaussian', error = 'frobenius', max_iterations = 200, random_state=None, phi_update = False):
+    def __init__(self,n_components=None, distribution = 'gaussian', error = 'frobenius', tol=1e-4, max_iterations = 200, random_state=None,  phi_update = False):
         ''' Constructor for this class. '''
         self.n_components = n_components
         if distribution not in list(distribution_phi.keys()):
@@ -61,6 +93,7 @@ class NMF:
         self.distibution = distribution
         self.error_function = error
         self.max_iterations = max_iterations
+        self.tol = tol
 
         # Check if a random state is given correctly
         if random_state is not None and not type(random_state) is RandomState:
@@ -71,6 +104,7 @@ class NMF:
 
         self.phi_update = phi_update
 
+
     def printType(self):
         print('NMF class')
 
@@ -80,8 +114,8 @@ class NMF:
         b = distribution_beta[self.distibution]
         V = self.V
 
-        H = H * ( (W.T).dot( ( ( (W.dot(H))**(b-2) ) *V) ) / ( W.T.dot( (W.dot(H))**(b-1) ) ) )
-        W = W * ( ( ( ( (W.dot(H))**(b-2) ) *V ).dot(H.T) ) / ( ( (W.dot(H))**(b-1) ).dot(H.T) ) )
+        H =  H * ( (W.T).dot( ( ( (W.dot(H))**(b-2) ) *V) ) / ( W.T.dot( (W.dot(H))**(b-1) ) ) )
+        W =  W * ( ( ( ( (W.dot(H))**(b-2) ) *V ).dot(H.T) ) / ( ( (W.dot(H))**(b-1) ).dot(H.T) ) )
 
         return W, H
 
@@ -96,6 +130,7 @@ class NMF:
 
     def fit(self, V):
         #print('Fit the Model')
+
         self.V = V
         n_samples = V.shape[0]
         n_features = V.shape[1]

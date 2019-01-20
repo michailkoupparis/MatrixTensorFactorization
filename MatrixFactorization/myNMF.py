@@ -13,13 +13,82 @@ from sklearn.decomposition.cdnmf_fast import _update_cdnmf_fast
 from sklearn.decomposition.nmf import _check_string_param , _initialize_nmf,_fit_coordinate_descent,_fit_multiplicative_update,_beta_divergence,_compute_regularization, INTEGER_TYPES, EPSILON
 
 distribution_beta = {'gaussian':2, 'poisson':1, 'gamma':0}
+def gaussian_phi(V,W,H):
+
+
+    H = np.multiply(H, np.divide(W.T.dot(V), W.T.dot(W.dot(H))))
+    W = np.multiply(W, np.divide(V.dot(H.T), (W.dot(H)).dot(H.T)))
+
+    return W, H
+
+def poisson_phi(V,W,H):
+
+    Vc = V + 0.00000000001
+    H = np.multiply(H, np.power(math.e, np.divide(W.T.dot(np.log(np.divide(Vc,W.dot(H)))),W.T.dot(np.ones(Vc.shape)))))
+    W = np.multiply ( W, np.power(math.e, np.divide( ((np.log(np.divide(Vc,W.dot(H)))).dot(H.T)) , (np.ones(Vc.shape).dot(H.T)   ) )  ))
+
+    return W, H
+
+def gamma_phi(V,W,H):
+
+    H = np.multiply(H, np.divide( W.T.dot(np.multiply(np.divide(1,(W.dot(H)))**2,V)) , W.T.dot(np.multiply(np.divide(1,(W.dot(H))**2),W.dot(H)))) )
+    W = np.multiply(W, np.divide(np.multiply(np.divide(1,(W.dot(H))**2),V).dot(H.T) ,  np.multiply(np.divide(1,(W.dot(H))**2), W.dot(H)).dot(H.T)))
+
+    return W, H
+
+def bernoulli_phi(V,W,H):
+
+    applied = bernoulli_apply_zeta(W,H,1)
+    H = np.multiply(H, np.divide( W.T.dot(np.multiply( applied, V )) , W.T.dot(np.multiply( applied, W.dot(H) )) ) )
+
+    applied = bernoulli_apply_zeta(W,H,1)
+    W = np.multiply(W, np.divide(np.multiply( applied, V ).dot(H.T), np.multiply( applied, W.dot(H) ).dot(H.T)  ) )
+
+    return W, H
+
+'''
+Apply 1/ ((WH)(1-WH))
+'''
+def bernoulli_apply_zeta(W,H,limit):
+
+    dot_product = cast_to_limit(W,H,1)
+    applied = np.divide(1,np.multiply(dot_product,1-dot_product))
+    return applied
+
+"Function for making the dot product of W with H satisfy the domain"
+def cast_to_limit(W,H,limit):
+
+    product = W.dot(H)
+    indices = np.where(product>=limit)
+    product[indices] = limit - 1e-5
+
+    indices = np.where(product==0)
+    product[indices] = 1e-5
+
+    return product
+
+distribution_phi = {'gaussian' : gaussian_phi,
+                    'poisson'  : poisson_phi,
+                     'gamma'   : gamma_phi,
+                     'bernoulli' : bernoulli_phi
+                    }
 
 def update_rule(V, W, H, dist):
 
     global distribution_beta
-    b = distribution_beta[dist]
-    H = H * ( (W.T).dot( ( ( W.dot(H)**(b-2) ) *V) ) / ( W.T.dot( (W.dot(H))**(b-1) ) ) )
-    W = W * ( ( ( ( W.dot(H)**(b-2) ) *V ).dot(H.T) ) / ( ( (W.dot(H))**(b-1) ).dot(H.T) ) )
+
+    if dist is 'bernoulli':
+
+        W, H = distribution_phi[dist](V,W,H)
+
+    else:
+        b = distribution_beta[dist]
+        if (b == 0):
+            factor = 0.00001
+        else:
+            factor = 0
+            H = H * ( (W.T).dot( ( ( W.dot(H)**(b-2) ) *V) ) / ( W.T.dot( (W.dot(H))**(b-1) ) + factor) )
+            W = W * ( ( ( ( W.dot(H)**(b-2) ) *V ).dot(H.T) ) / ( ( (W.dot(H))**(b-1) ).dot(H.T) + factor) )
 
     return W, H
 
@@ -218,7 +287,7 @@ class myNMF(NMF):
                  random_state=None, alpha=0., l1_ratio=0., verbose=0,
                  shuffle=False,distribution = 'gaussian'):
         ''' Constructor for this class. '''
-        if (distribution not in distribution_beta.keys()):
+        if (distribution not in distribution_phi.keys()):
             raise ValueError('This districution is not supported: ' + str(distribution))
         self.distribution = distribution
         #print(self.distribution)
