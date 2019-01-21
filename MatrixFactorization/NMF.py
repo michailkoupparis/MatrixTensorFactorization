@@ -46,21 +46,33 @@ def gamma_phi(V,W,H):
 
 def bernoulli_phi(V,W,H):
 
-    applied = bernoulli_apply_zeta(W,H,1)
+    applied = binomial_apply_zeta(W,H,1)
     H = np.multiply(H, np.divide( W.T.dot(np.multiply( applied, V )) , W.T.dot(np.multiply( applied, W.dot(H) )) ) )
 
-    applied = bernoulli_apply_zeta(W,H,1)
+    applied = binomial_apply_zeta(W,H,1)
+    W = np.multiply(W, np.divide(np.multiply( applied, V ).dot(H.T), np.multiply( applied, W.dot(H) ).dot(H.T)  ) )
+
+    return W, H
+
+
+
+def binomial_phi(V,W,H,N):
+
+    applied = binomial_apply_zeta(W,H,N)
+    H = np.multiply(H, np.divide( W.T.dot(np.multiply( applied, V )) , W.T.dot(np.multiply( applied, W.dot(H) )) ) )
+
+    applied = binomial_apply_zeta(W,H,N)
     W = np.multiply(W, np.divide(np.multiply( applied, V ).dot(H.T), np.multiply( applied, W.dot(H) ).dot(H.T)  ) )
 
     return W, H
 
 '''
-Apply 1/ ((WH)(1-WH))
+Apply N/ ((WH)(N-WH))
 '''
-def bernoulli_apply_zeta(W,H,limit):
+def binomial_apply_zeta(W,H,limit):
 
-    dot_product = cast_to_limit(W,H,1)
-    applied = np.divide(1,np.multiply(dot_product,1-dot_product))
+    dot_product = cast_to_limit(W,H,limit)
+    applied = np.divide(limit,np.multiply(dot_product,limit-dot_product))
     return applied
 
 "Function for making the dot product of W with H satisfy the domain"
@@ -75,17 +87,41 @@ def cast_to_limit(W,H,limit):
 
     return product
 
+def multinomial_phi(V,W,H,N):
+
+    applied = multinomail_apply_zeta(W,H,D)
+    H = np.multiply(H, np.divide( W.T.dot(np.multiply( applied, V )) , W.T.dot(np.multiply( applied, W.dot(H) )) ) )
+
+    applied = multinomial_apply_zeta(W,H,D)
+    W = np.multiply(W, np.divide(np.multiply( applied, V ).dot(H.T), np.multiply( applied, W.dot(H) ).dot(H.T)  ) )
+
+    return W, H
+
+'''
+Apply 1/ Sum from 1 to D(1/WH)
+'''
+def multinomial_apply_zeta(W,H,limit):
+
+    dot_product = W.dot(H)
+
+    applied = np.divide(1,dot_product)
+    return applied
+
+
+
 distribution_phi = {'gaussian' : gaussian_phi,
                     'poisson'  : poisson_phi,
                      'gamma'   : gamma_phi,
-                     'bernoulli' : bernoulli_phi
-                     #'binomial'  : binomial_phi,
-                     #'multinomial' : multinomial_phi
+                     'bernoulli' : bernoulli_phi,
+                     'binomial'  : binomial_phi,
+                     'multinomial' : multinomial_phi
                     }
 
 class NMF:
 
-    def __init__(self,n_components=None, distribution = 'gaussian', error = 'frobenius', tol=1e-4, max_iterations = 200, random_state=None,  phi_update = False):
+    def __init__(self,n_components=None, distribution = 'gaussian', error = 'frobenius', tol=1e-4, max_iterations = 200, random_state=None,
+      phi_update = False, N= None, D=None):
+
         ''' Constructor for this class. '''
         self.n_components = n_components
         if distribution not in list(distribution_phi.keys()):
@@ -103,6 +139,17 @@ class NMF:
         self.W = None
 
         self.phi_update = phi_update
+
+        if distribution == 'binomial' and N is  None:
+
+            raise ValueError('Give the Number of trials N.')
+        self.N = N
+
+        if distribution == 'multinomial' and D is  None:
+
+            raise ValueError('Give the Number of Dimensions')
+        self.D = D
+
 
 
     def printType(self):
@@ -125,7 +172,15 @@ class NMF:
         if self.V is None:
             raise ValueError('You should call the fit function first.')
 
-        W, H = distribution_phi[self.distibution](self.V, W, H)
+        if self.distibution == 'multinomial':
+            W, H = distribution_phi[self.distibution](self.V, W, H, self.D)
+
+        elif self.distibution == 'binomial':
+            W, H = distribution_phi[self.distibution](self.V, W, H, self.N)
+
+        else:
+            W, H = distribution_phi[self.distibution](self.V, W, H)
+
         return W, H
 
     def fit(self, V):

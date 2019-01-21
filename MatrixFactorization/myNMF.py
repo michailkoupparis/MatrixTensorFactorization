@@ -36,12 +36,23 @@ def gamma_phi(V,W,H):
 
     return W, H
 
-def bernoulli_phi(V,W,H):
+def bernoulli_phi(V,W,H,N=None):
 
-    applied = bernoulli_apply_zeta(W,H,1)
+    applied = binomial_apply_zeta(W,H,1)
     H = np.multiply(H, np.divide( W.T.dot(np.multiply( applied, V )) , W.T.dot(np.multiply( applied, W.dot(H) )) ) )
 
-    applied = bernoulli_apply_zeta(W,H,1)
+    applied = binomial_apply_zeta(W,H,1)
+    W = np.multiply(W, np.divide(np.multiply( applied, V ).dot(H.T), np.multiply( applied, W.dot(H) ).dot(H.T)  ) )
+
+    return W, H
+
+
+def binomial_phi(V,W,H,N):
+
+    applied = binomial_apply_zeta(W,H,N)
+    H = np.multiply(H, np.divide( W.T.dot(np.multiply( applied, V )) , W.T.dot(np.multiply( applied, W.dot(H) )) ) )
+
+    applied = binomial_apply_zeta(W,H,N)
     W = np.multiply(W, np.divide(np.multiply( applied, V ).dot(H.T), np.multiply( applied, W.dot(H) ).dot(H.T)  ) )
 
     return W, H
@@ -49,10 +60,10 @@ def bernoulli_phi(V,W,H):
 '''
 Apply 1/ ((WH)(1-WH))
 '''
-def bernoulli_apply_zeta(W,H,limit):
+def binomial_apply_zeta(W,H,limit):
 
-    dot_product = cast_to_limit(W,H,1)
-    applied = np.divide(1,np.multiply(dot_product,1-dot_product))
+    dot_product = cast_to_limit(W,H,limit)
+    applied = np.divide(limit,np.multiply(dot_product,limit-dot_product))
     return applied
 
 "Function for making the dot product of W with H satisfy the domain"
@@ -67,39 +78,76 @@ def cast_to_limit(W,H,limit):
 
     return product
 
-distribution_phi = {'gaussian' : gaussian_phi,
-                    'poisson'  : poisson_phi,
-                     'gamma'   : gamma_phi,
-                     'bernoulli' : bernoulli_phi
-                    }
 
-def update_rule(V, W, H, dist):
+def multinomial_phi(V,W,H,N):
 
-    global distribution_beta
+    applied = multinomail_apply_zeta(W,H,D)
+    H = np.multiply(H, np.divide( W.T.dot(np.multiply( applied, V )) , W.T.dot(np.multiply( applied, W.dot(H) )) ) )
 
-    if dist is 'bernoulli':
-
-        W, H = distribution_phi[dist](V,W,H)
-
-    else:
-        b = distribution_beta[dist]
-        if (b == 0):
-            factor = 0.00001
-        else:
-            factor = 0
-            H = H * ( (W.T).dot( ( ( W.dot(H)**(b-2) ) *V) ) / ( W.T.dot( (W.dot(H))**(b-1) ) + factor) )
-            W = W * ( ( ( ( W.dot(H)**(b-2) ) *V ).dot(H.T) ) / ( ( (W.dot(H))**(b-1) ).dot(H.T) + factor) )
+    applied = multinomial_apply_zeta(W,H,D)
+    W = np.multiply(W, np.divide(np.multiply( applied, V ).dot(H.T), np.multiply( applied, W.dot(H) ).dot(H.T)  ) )
 
     return W, H
 
-def update(V,W,H,n_it,dist):
+'''
+Apply 1/ Sum from 1 to D(1/WH)
+'''
+def multinomial_apply_zeta(W,H,limit):
+
+    dot_product = W.dot(H)
+
+    applied = np.divide(1,dot_product)
+    return applied
+
+distribution_phi = {'gaussian' : gaussian_phi,
+                    'poisson'  : poisson_phi,
+                     'gamma'   : gamma_phi,
+                     'bernoulli' : bernoulli_phi,
+                     'binomial' : binomial_phi,
+                     'multinomial' : multinomial_phi
+
+                    }
+
+def update_rule(V, W, H, dist, N = None , D = None):
+
+    global distribution_beta
+
+    if dist is 'bernoulli' :
+
+        W, H = distribution_phi[dist](V,W,H)
+
+    elif dist is 'binomial':
+
+        W, H = distribution_phi[dist](V,W,H,N)
+
+    elif dist is 'multinomial':
+
+        W, H = distribution_phi[dist](V,W,H,D)
+
+    else:
+        b = distribution_beta[dist]
+        #if (b == 0):
+        #    factor = 0.00001
+        #else:
+        #    factor = 0
+        H = H * ( (W.T).dot( ( ( W.dot(H)**(b-2) ) *V) ) / ( W.T.dot( (W.dot(H))**(b-1) ) + 0) )
+        W = W * ( ( ( ( W.dot(H)**(b-2) ) *V ).dot(H.T) ) / ( ( (W.dot(H))**(b-1) ).dot(H.T) + 0) )
+
+    return W, H
+
+def update(V,W,H,n_it,dist, N=None, D=None):
 
     Wold = W
     Hold = H
 
     for i in range(0,n_it):
 
-            W, H = update_rule(V,W,H,dist)
+            if dist == 'binomial':
+                W, H = update_rule(V,W,H,dist,N)
+            elif dist == 'multinomial':
+                W, H = update_rule(V,W,H,dist,D)
+            else:
+                W, H = update_rule(V,W,H,dist)
             if np.array_equal(W,Wold) and np.array_equal(H,Hold):
                 #print('Update process Stabilize')
                 break
@@ -113,7 +161,7 @@ def non_negative_factorization(X, W=None, H=None, n_components=None,
                                beta_loss='frobenius', tol=1e-4,
                                max_iter=200, alpha=0., l1_ratio=0.,
                                regularization=None, random_state=None,
-                               verbose=0, shuffle=False, distribution = 'gaussian'):
+                               verbose=0, shuffle=False, distribution = 'gaussian', N=None, D=None):
     r"""Compute Non-negative Matrix Factorization (NMF)
     Find two non-negative matrices (W, H) whose product approximates the non-
     negative matrix X. This factorization can be used for example for
@@ -271,7 +319,7 @@ def non_negative_factorization(X, W=None, H=None, n_components=None,
     l1_reg_W, l1_reg_H, l2_reg_W, l2_reg_H = _compute_regularization(
         alpha, l1_ratio, regularization)
 
-    W, H, n_iter = update(X, W, H, max_iter, distribution)
+    W, H, n_iter = update(X, W, H, max_iter, distribution, N , D)
 
 
     if n_iter == max_iter and tol > 0:
@@ -285,11 +333,21 @@ class myNMF(NMF):
     def __init__(self, n_components=None, init=None, solver='cd',
                  beta_loss='frobenius', tol=1e-4, max_iter=200,
                  random_state=None, alpha=0., l1_ratio=0., verbose=0,
-                 shuffle=False,distribution = 'gaussian'):
+                 shuffle=False,distribution = 'gaussian', N=None, D = None):
         ''' Constructor for this class. '''
         if (distribution not in distribution_phi.keys()):
             raise ValueError('This districution is not supported: ' + str(distribution))
         self.distribution = distribution
+        if distribution == 'binomial' and N is  None:
+
+            raise ValueError('Give the Number of trials N.')
+        self.N = N
+
+        if distribution == 'multinomial' and D is  None:
+
+            raise ValueError('Give the Number of Dimensions')
+        self.D = D
+
         #print(self.distribution)
         super().__init__(n_components=n_components, init=init, solver=solver,
                      beta_loss=beta_loss, tol=tol, max_iter=max_iter,
@@ -324,7 +382,7 @@ class myNMF(NMF):
             tol=self.tol, max_iter=self.max_iter, alpha=self.alpha,
             l1_ratio=self.l1_ratio, regularization='both',
             random_state=self.random_state, verbose=self.verbose,
-            shuffle=self.shuffle, distribution = self.distribution)
+            shuffle=self.shuffle, distribution = self.distribution, N=self.N, D=self.D)
 
         self.reconstruction_err_ = _beta_divergence(X, W, H, self.beta_loss,
                                                     square_root=True)
