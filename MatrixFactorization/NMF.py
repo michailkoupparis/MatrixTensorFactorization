@@ -52,6 +52,18 @@ def bernoulli_phi(V,W,H):
     applied = binomial_apply_zeta(W,H,1)
     W = np.multiply(W, np.divide(np.multiply( applied, V ).dot(H.T), np.multiply( applied, W.dot(H) ).dot(H.T)  ) )
 
+
+    indices = np.where(W.dot(H)>1)
+    count = 0
+    while len(indices[0]) >=1:
+        #print(indices)
+        count += 1
+        #print("Loop interation" + str(count))
+        for (i,c) in zip(indices[0],indices[1]):
+            H[:,c] = H[:,c] / 1.001
+            #W[i,:] = W[i,:] / 1.1
+            indices = np.where(W.dot(H)>1)
+
     return W, H
 
 
@@ -63,6 +75,17 @@ def binomial_phi(V,W,H,N):
 
     applied = binomial_apply_zeta(W,H,N)
     W = np.multiply(W, np.divide(np.multiply( applied, V ).dot(H.T), np.multiply( applied, W.dot(H) ).dot(H.T)  ) )
+
+    indices = np.where(W.dot(H)>N)
+    count = 0
+    while len(indices[0]) >=1:
+        #print(indices)
+        count += 1
+        #print("Loop interation" + str(count))
+        for (i,c) in zip(indices[0],indices[1]):
+            H[:,c] = H[:,c] / 1.001
+            #W[i,:] = W[i,:] / 1.1
+            indices = np.where(W.dot(H)>N)
 
     return W, H
 
@@ -194,18 +217,26 @@ class NMF:
         if self.n_components is None:
             self.n_components = n_features
 
-        minV = np.min(V)
-        maxV = np.max(V)
+        #minV = np.min(V)
+        #maxV = np.max(V)
+
+        multiply = 1
+        if self.distibution is 'bernoulli':
+
+            multiply = (1 / self.n_components) ** 2
+
+        elif self.distibution is 'binomial':
+
+            multiply = (self.N / self.n_components) ** 2
 
         # Find if a random State is given
         if self.random_state is not None:
-            self.W = self.random_state.random_sample((n_samples,self.n_components))
-            self.H = self.random_state.random_sample((self.n_components,n_features))
+            self.W = self.random_state.random_sample((n_samples,self.n_components)) * multiply
+            self.H = self.random_state.random_sample((self.n_components,n_features)) * multiply
 
         else:
-            self.W = np.random.random_sample((n_samples,n_features))
-            self.H = np.random.random_sample((self.n_components,n_features))
-
+            self.W = np.random.random_sample((n_samples,n_features)) * multiply
+            self.H = np.random.random_sample((self.n_components,n_features)) * multiply
 
     def transform(self, V):
         #print('Transformation')

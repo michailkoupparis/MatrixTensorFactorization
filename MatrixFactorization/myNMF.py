@@ -36,13 +36,14 @@ def gamma_phi(V,W,H):
 
     return W, H
 
-def bernoulli_phi(V,W,H,N=None):
+def bernoulli_phi(V,W,H):
 
     applied = binomial_apply_zeta(W,H,1)
     H = np.multiply(H, np.divide( W.T.dot(np.multiply( applied, V )) , W.T.dot(np.multiply( applied, W.dot(H) )) ) )
 
     applied = binomial_apply_zeta(W,H,1)
     W = np.multiply(W, np.divide(np.multiply( applied, V ).dot(H.T), np.multiply( applied, W.dot(H) ).dot(H.T)  ) )
+
 
     return W, H
 
@@ -315,6 +316,7 @@ def non_negative_factorization(X, W=None, H=None, n_components=None,
     else:
         W, H = _initialize_nmf(X, n_components, init=init,
                                random_state=random_state)
+
 
     l1_reg_W, l1_reg_H, l2_reg_W, l2_reg_H = _compute_regularization(
         alpha, l1_ratio, regularization)
