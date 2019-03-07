@@ -39,8 +39,8 @@ def poisson_phi(V,W,H):
 
 def gamma_phi(V,W,H):
 
-    H = np.multiply(H, np.divide( W.T.dot(np.multiply(np.divide(1,(W.dot(H)))**2,V)) , W.T.dot(np.multiply(np.divide(1,(W.dot(H))**2),W.dot(H)))) )
-    W = np.multiply(W, np.divide(np.multiply(np.divide(1,(W.dot(H))**2),V).dot(H.T) ,  np.multiply(np.divide(1,(W.dot(H))**2), W.dot(H)).dot(H.T)))
+    H = np.multiply(H, np.divide( W.T.dot(np.multiply(np.divide(1,(W.dot(H)))**2,V+1e-5)) , W.T.dot(np.multiply(np.divide(1,(W.dot(H))**2),W.dot(H)))) )
+    W = np.multiply(W, np.divide(np.multiply(np.divide(1,(W.dot(H))**2),V+1e-5).dot(H.T) ,  np.multiply(np.divide(1,(W.dot(H))**2), W.dot(H)).dot(H.T)))
 
     return W, H
 
